@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="decision-footer">
                     <span class="ada-badge">ΑΔΑ: ${dec.ada}</span>
-                    <a href="https://diavgeia.gov.gr/decision/view/${dec.ada}" target="_blank" rel="noopener noreferrer" class="pdf-link">
+                    <a href="https://diavgeia.gov.gr/doc/${dec.ada}?inline=true" target="_blank" rel="noopener noreferrer" class="pdf-link">
                         Προβολή PDF <i class="ph ph-arrow-square-out"></i>
                     </a>
                 </div>
