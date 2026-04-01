@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Αποφάσεις Διαύγειας | Αγιάσος</title>
+    <!-- Google Fonts for Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Phosphor Icons for elegant vectors -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+
+    <div class="background-mesh"></div>
+
+    <main class="container">
+        
+        <header class="header flex-col-center glass-panel">
+            <div class="logo-wrapper">
+                <img src="assets/logo.png" alt="Αγιάσος Logo" class="brand-logo" onerror="this.src=''; this.alt='🏛️';">
+            </div>
+            <h1 class="brand-title">Αγιάσος Λέσβου</h1>
+            <p class="brand-subtitle">Αναζήτηση Αποφάσεων Διαύγειας</p>
+        </header>
+
+        <section class="controls glass-panel">
+            <div class="search-bar">
+                <i class="ph ph-magnifying-glass search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Αναζήτηση με λέξη κλειδί (π.χ. ΑΓΙΑΣΟΣ, ΟΙΚΟΔΟΜΗ, κτλ)..." value="ΑΓΙΑΣΟΣ">
+            </div>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="startDate">Από:</label>
+                    <input type="date" id="startDate" name="startDate">
+                </div>
+                <div class="filter-group">
+                    <label for="endDate">Έως:</label>
+                    <input type="date" id="endDate" name="endDate">
+                </div>
+                <button id="searchBtn" class="btn primary-btn">
+                    <i class="ph ph-magnifying-glass-plus"></i>
+                    Αναζήτηση
+                </button>
+            </div>
+        </section>
+
+        <section class="results-container">
+            <div id="loading" class="hidden loading-wrapper">
+                <div class="spinner"></div>
+                <p>Αναζήτηση στη Διαύγεια...</p>
+            </div>
+            
+            <div id="error" class="hidden error-wrapper glass-panel">
+                <i class="ph ph-warning-circle"></i>
+                <p id="errorMsg"></p>
+            </div>
+
+            <div class="results-meta hidden" id="resultsMeta">
+                <h2>Βρέθηκαν συνολικά <span id="totalCount" class="highlight">0</span> αποφάσεις</h2>
+            </div>
+
+            <div id="decisionsList" class="decisions-grid">
+                <!-- Results injected via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <p>Created for Αγιάσος using the official Diavgeia Open Data API.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
