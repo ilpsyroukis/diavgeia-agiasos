@@ -85,7 +85,24 @@ document.addEventListener('DOMContentLoaded', () => {
             // Helper to strip Greek accents
             const stripAccents = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
             
+            // Helper for basic Greek stemming
+            function getGreekStem(word) {
+                if (word.length <= 4) return word;
+                const suffixes = ['ους', 'ων', 'ος', 'ου', 'οι', 'ης', 'ες', 'ας', 'ο', 'η', 'α', 'ι'];
+                for (let suf of suffixes) {
+                    if (word.endsWith(suf)) {
+                        const stem = word.slice(0, -suf.length);
+                        if (stem.length >= 3) {
+                            return stem;
+                        }
+                    }
+                }
+                return word;
+            }
+
             const cleanTerm = stripAccents(term);
+            const searchWords = cleanTerm.split(/\s+/).filter(w => w.length > 0);
+            const searchStems = searchWords.map(getGreekStem);
 
             // Client-side filtering
             let filtered = allDecisions.filter(dec => {
@@ -94,10 +111,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!dateMatches) return false;
                 
                 // 2. Check Term if provided
-                if (cleanTerm) {
+                if (searchStems.length > 0) {
                     const subjectClean = stripAccents(dec.subject);
                     const adaClean = stripAccents(dec.ada);
-                    if (!subjectClean.includes(cleanTerm) && !adaClean.includes(cleanTerm)) return false;
+                    const textClean = dec.documentText ? stripAccents(dec.documentText) : "";
+                    
+                    const fullDocText = subjectClean + " " + adaClean + " " + textClean;
+                    
+                    // All search stems must be found in the document
+                    const matchesAll = searchStems.every(stem => fullDocText.includes(stem));
+                    if (!matchesAll) return false;
                 }
                 
                 return true;
