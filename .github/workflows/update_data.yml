@@ -23,7 +23,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests pypdf
 
       - name: Run Update Script
         run: python scripts/update_db.py
