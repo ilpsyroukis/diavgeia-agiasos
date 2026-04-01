@@ -20,82 +20,62 @@ total_to_process = 0
 
 import re
 
-def generate_ai_summary(text):
+def generate_ai_summary(text, subject=""):
     """
-    Improved AI summary with noise reduction and redundant prefix removal.
-    Focuses on extracting meaningful action descriptions (e.g. 'Επισκευή πόρτας').
+    Cleans the official Diavgeia subject for a human-readable title.
+    Instead of aggressively deleting prefixes, we reformat them to be descriptive summaries.
     """
-    if not text or len(text.strip()) < 50:
-        return None
-        
-    # 1. Aggressive cleaning of symbols and noise from PDF tables
-    clean_text = text.replace('|', ' ').replace('-', ' ').replace('_', ' ').replace('=', ' ')
-    clean_text = re.sub(r'\.{2,}', ' ', clean_text) # remove multi-dots
-    clean_text = re.sub(r'\s+', ' ', clean_text).strip() # normalize whitespace
+    title = str(subject or "").strip()
     
-    # 2. Redundant administrative phrases to strip out
-    junk_prefixes = [
-        "ΔΕΣΜΕΥΣΗ ΠΟΣΟΥ ΓΙΑ ΤΗΝ", "ΔΕΣΜΕΥΣΗ ΠΟΣΟΥ ΓΙΑ ΤΙΣ", "ΔΕΣΜΕΥΣΗ ΠΟΣΟΥ ΓΙΑ", 
-        "ΑΠΟΦΑΣΗ", "ΕΓΚΡΙΣΗ", "ΠΡΟΜΗΘΕΙΑ", "ΠΑΡΟΧΗ ΥΠΗΡΕΣΙΩΝ", "ΠΛΗΡΩΜΗ ΓΙΑ"
+    if not title or title.upper() == "ΧΩΡΙΣ ΘΕΜΑ":
+        if not text: return "Χωρίς Τίτλο"
+        clean_text = re.sub(r'\s+', ' ', text).strip()
+        sentences = [s.strip() for s in clean_text.split('.') if len(s.strip()) > 20]
+        title = sentences[0] if sentences else "Απόφαση"
+
+    # Define how to categorize and summarize the heavy administrative prefixes
+    prefix_rules = [
+        (r"^(?:ΑΠΟΦΑΣΗ\s+)?ΔΕΣΜΕΥΣΗ(?:Σ)?\s+ΠΟΣΟΥ(?:\s+ΓΙΑ(?:\s+(?:ΤΗΝ|ΤΙΣ|ΤΟΥΣ|ΤΑ|ΤΟ|ΤΟΝ))?)?\s+", "Δέσμευση Ποσού: "),
+        (r"^(?:ΑΠΟΦΑΣΗ\s+)?ΕΓΚΡΙΣΗ(?:Σ)?\s+ΔΑΠΑΝΗΣ(?:\s+ΓΙΑ(?:\s+(?:ΤΗΝ|ΤΙΣ|ΤΟΥΣ|ΤΑ|ΤΟ|ΤΟΝ))?)?\s+", "Έγκριση Δαπάνης: "),
+        (r"^(?:ΑΠΟΦΑΣΗ\s+)?ΧΟΡΗΓΗΣΗ(?:Σ)?\s+ΑΔΕΙΑΣ(?:\s+ΠΑΡΑΤΑΣΗΣ(?:\s+ΜΟΥΣΙΚΗΣ)?)?\s+", "Χορήγηση Άδειας: "),
+        (r"^(?:ΑΠΟΦΑΣΗ\s+)?ΑΝΑΚΛΗΣΗ(?:Σ)?\s+", "Ανάκληση: "),
+        (r"^ΑΠΟΦΑΣΗ\s+", "Απόφαση: "),
+        (r"^ΕΓΚΡΙΣΗ\s+ΠΡΑΚΤΙΚΟ(?:\S+)?\s+", "Έγκριση Πρακτικού: "),
+        (r"^ΕΓΚΡΙΣΗ\s+", "Έγκριση: "),
+        (r"^ΠΡΟΜΗΘΕΙΑ\s+", "Προμήθεια: "),
+        (r"^ΠΑΡΟΧΗ\s+ΥΠΗΡΕΣΙ(?:ΩΝ|ΑΣ)\s+", "Παροχή Υπηρεσίας: "),
+        (r"^(?:ΑΠΕΥΘΕΙΑΣ\s+)?ΑΝΑΘΕΣΗ\s+", "Ανάθεση: "),
+        (r"^ΣΥΓΚΡΟΤΗΣΗ\s+", "Συγκρότηση: ")
     ]
     
-    # 3. Sentence splitting (improved logic)
-    sentences = [s.strip() for s in clean_text.split('.') if len(s.strip()) > 10]
-    if not sentences: return None
-    
-    # 4. Keyword targeting
-    keywords = [
-        "επισκευή", "συντήρηση", "καθαρισμός", "αγορά", "ανάθεση", "μετάβαση",
-        "καύσιμα", "τροφεία", "υπηρεσίες", "δράση", "εκδήλωση", "έργο", "προσωπικό"
-    ]
-    
-    ranked = []
-    for i, s in enumerate(sentences[:20]):
-        score = 0
-        s_upper = s.upper()
+    prefix_added = ""
+    for pattern, replacement in prefix_rules:
+        if re.search(pattern, title, flags=re.IGNORECASE):
+            title = re.sub(pattern, "", title, flags=re.IGNORECASE).strip()
+            prefix_added = replacement
+            break
 
-        # Boost sentences following a specific marker (common in Diavgeia headers)
-        markers = ["ΑΙΤΙΑ ΠΛΗΡΩΜΗΣ", "ΘΕΜΑ:", "ΘΕΜΑ", "ΠΕΡΙΛΗΨΗ"]
-        for marker in markers:
-            if marker in s_upper:
-                score += 15
-                # Extract the text after the marker if possible
-                parts = re.split(f"{marker}", s, flags=re.IGNORECASE)
-                if len(parts) > 1: s = parts[1].strip()
-
-        # Penalty for mostly numeric sentences (budget codes)
-        num_count = sum(c.isdigit() for c in s)
-        if num_count > len(s) * 0.3:
-            score -= 10
-            
-        # Penalty for extremely short or noisy strings
-        if len(s) < 20: score -= 5
-        
-        # Boost for actual keywords
-        for kw in keywords:
-            if kw in s.lower():
-                score += 5
-                
-        # Strip junk prefixes from the candidate summary
-        for junk in junk_prefixes:
-            if s.upper().startswith(junk):
-                s = s[len(junk):].strip()
-        
-        if len(s) > 10:
-            ranked.append((score, s))
+    # Remove typical suffixes in parentheses or after dash
+    title = re.sub(r'\(.*\)\s*$', '', title).strip()
+    title = re.sub(r'\s+-\s+.*$', '', title).strip()
     
-    if not ranked: return None
+    if not title: 
+        title = subject 
     
-    # Sort and pick the best candidate
-    ranked.sort(reverse=True, key=lambda x: x[0])
-    summary = ranked[0][1]
+    # Capitalize the remaining string (which is usually uppercase Greek without accents)
+    # The .lower().capitalize() will make it e.g. "Συντηρηση πλυντηριου"
+    title = title.lower().capitalize()
     
-    # Final cleanup (capitalization and length)
-    summary = summary.capitalize().strip()
-    if len(summary) > 150:
-        summary = summary[:147] + "..."
+    if prefix_added:
+        # Prevent double starting like "Απόφαση: Απόφαση..."
+        if title.startswith(prefix_added.split(':')[0]):
+            title = title[len(prefix_added.split(':')[0]):].strip()
+        title = prefix_added + title
+    
+    if len(title) > 120:
+        title = title[:117] + "..."
         
-    return summary
+    return title
 
 def fetch_pdf_text(dec):
     global processed_count, total_to_process
@@ -119,8 +99,8 @@ def fetch_pdf_text(dec):
              full_text = " ".join(text)
              dec['documentText'] = full_text
              
-             # Generate AI summary immediately
-             summary = generate_ai_summary(full_text)
+             # Generate primary title from cleaned subject
+             summary = generate_ai_summary(full_text, dec.get('subject'))
              if summary:
                  dec['summary'] = summary
          else:
@@ -260,8 +240,8 @@ def main():
     print("[*] Updating first 1000 AI summaries with new cleaner logic...")
     summarized_count = 0
     for dec in sorted_decisions:
-        if 'documentText' in dec:
-            summary = generate_ai_summary(dec['documentText'])
+        if 'documentText' in dec or 'subject' in dec:
+            summary = generate_ai_summary(dec.get('documentText', ''), dec.get('subject', ''))
             if summary:
                 dec['summary'] = summary
                 summarized_count += 1
