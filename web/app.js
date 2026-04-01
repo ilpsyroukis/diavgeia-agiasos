@@ -11,6 +11,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsMeta = document.getElementById('resultsMeta');
     const totalCount = document.getElementById('totalCount');
     const decisionsList = document.getElementById('decisionsList');
+    const paginationTop = document.getElementById('paginationTop');
+    const paginationBottom = document.getElementById('paginationBottom');
+
+    let currentFiltered = [];
+    let currentPage = 1;
+    const itemsPerPage = 50;
 
     // Handle search click
     searchBtn.addEventListener('click', () => {
@@ -97,14 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return true;
             });
             
-            // Render maximum 150 items to keep DOM fast
-            const totalMatching = filtered.length;
-            if (filtered.length > 150) {
-                 filtered = filtered.slice(0, 150);
-            }
+            currentFiltered = filtered;
+            currentPage = 1;
 
             // Render
-            renderDecisions(filtered, totalMatching);
+            renderPage();
 
         } catch (err) {
             console.error(err);
@@ -114,17 +117,72 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderDecisions(decisions, totalMatching = decisions.length) {
+    function renderPage() {
+        const totalMatching = currentFiltered.length;
+        const totalPages = Math.ceil(totalMatching / itemsPerPage) || 1;
+        
+        if (currentPage < 1) currentPage = 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        
+        const startIdx = (currentPage - 1) * itemsPerPage;
+        const endIdx = Math.min(startIdx + itemsPerPage, totalMatching);
+        
+        const pageDecisions = currentFiltered.slice(startIdx, endIdx);
         decisionsList.innerHTML = '';
         
-        if (decisions.length === 0) {
+        if (totalMatching === 0) {
             decisionsList.innerHTML = `<p style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-weight: 500;">Δεν βρέθηκαν αποτελέσματα για αυτή την αναζήτηση.</p>`;
+            paginationTop.classList.add('hidden');
+            paginationBottom.classList.add('hidden');
+            totalCount.textContent = '0';
         } else {
-            const html = decisions.map(createDecisionCard).join('');
+            const html = pageDecisions.map(createDecisionCard).join('');
             decisionsList.innerHTML = html;
+            
+            const formatNumber = (num) => new Intl.NumberFormat('el-GR').format(num);
+            totalCount.textContent = formatNumber(totalMatching);
+            
+            const paginationHTML = `
+                <span>${formatNumber(startIdx + 1)}–${formatNumber(endIdx)} of ${formatNumber(totalMatching)}</span>
+                <button class="pagination-btn" id="prevPage" ${currentPage === 1 ? 'disabled' : ''}>
+                    <i class="ph ph-caret-left"></i>
+                </button>
+                <button class="pagination-btn" id="nextPage" ${currentPage === totalPages ? 'disabled' : ''}>
+                    <i class="ph ph-caret-right"></i>
+                </button>
+            `;
+            
+            const paginationHTMLBottom = `
+                <span>${formatNumber(startIdx + 1)}–${formatNumber(endIdx)} of ${formatNumber(totalMatching)}</span>
+                <button class="pagination-btn" id="prevBot" ${currentPage === 1 ? 'disabled' : ''}>
+                    <i class="ph ph-caret-left"></i>
+                </button>
+                <button class="pagination-btn" id="nextBot" ${currentPage === totalPages ? 'disabled' : ''}>
+                    <i class="ph ph-caret-right"></i>
+                </button>
+            `;
+            
+            paginationTop.innerHTML = paginationHTML;
+            paginationBottom.innerHTML = paginationHTMLBottom;
+            
+            paginationTop.classList.remove('hidden');
+            paginationBottom.classList.remove('hidden');
+            
+            // Attach Events
+            document.getElementById('prevPage').addEventListener('click', () => { currentPage--; renderPage(); });
+            document.getElementById('nextPage').addEventListener('click', () => { currentPage++; renderPage(); });
+            document.getElementById('prevBot').addEventListener('click', () => { 
+                currentPage--; 
+                renderPage(); 
+                document.querySelector('.controls').scrollIntoView({ behavior: 'smooth' });
+            });
+            document.getElementById('nextBot').addEventListener('click', () => { 
+                currentPage++; 
+                renderPage(); 
+                document.querySelector('.controls').scrollIntoView({ behavior: 'smooth' });
+            });
         }
 
-        totalCount.textContent = totalMatching + (totalMatching > 150 ? ' (εμφανίζονται οι 150 πιο πρόσφατες)' : '');
         resultsMeta.classList.remove('hidden');
     }
 

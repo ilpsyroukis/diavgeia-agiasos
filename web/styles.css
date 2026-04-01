@@ -248,10 +248,56 @@ body {
 
 .results-meta {
     margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 .results-meta h2 {
     font-size: 1.4rem;
     font-weight: 600;
+}
+
+/* Pagination Controls */
+.pagination-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.pagination-controls.bottom-pagination {
+    margin-top: 2rem;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.pagination-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    transition: background 0.2s, color 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: rgba(0,0,0,0.06);
+    color: var(--text-main);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 .highlight {
     color: var(--primary);
