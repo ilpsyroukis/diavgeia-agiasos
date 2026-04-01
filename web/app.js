@@ -98,12 +98,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             // Render maximum 150 items to keep DOM fast
+            const totalMatching = filtered.length;
             if (filtered.length > 150) {
                  filtered = filtered.slice(0, 150);
             }
 
             // Render
-            renderDecisions(filtered);
+            renderDecisions(filtered, totalMatching);
 
         } catch (err) {
             console.error(err);
@@ -113,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderDecisions(decisions) {
+    function renderDecisions(decisions, totalMatching = decisions.length) {
         decisionsList.innerHTML = '';
         
         if (decisions.length === 0) {
@@ -123,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             decisionsList.innerHTML = html;
         }
 
-        totalCount.textContent = decisions.length;
+        totalCount.textContent = totalMatching + (totalMatching > 150 ? ' (εμφανίζονται οι 150 πιο πρόσφατες)' : '');
         resultsMeta.classList.remove('hidden');
     }
 
