@@ -218,18 +218,22 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Use AI summary if available, otherwise use original subject
+        const displayTitle = dec.summary || dec.subject || 'Χωρίς Θέμα';
+        const originalSubject = dec.subject || '';
+
         return `
             <article class="decision-card">
                 <div>
                     <span class="decision-date">${dateStr}</span>
-                    <h3 class="decision-subject" title="${dec.subject || ''}">
-                        ${truncateText(dec.subject || 'Χωρίς Θέμα', 100)}
+                    <h3 class="decision-subject" title="${originalSubject.replace(/"/g, '&quot;')}">
+                        ${truncateText(displayTitle, 120)}
                     </h3>
                 </div>
                 <div class="decision-footer">
                     <span class="ada-badge">ΑΔΑ: ${dec.ada}</span>
-                    <a href="https://diavgeia.gov.gr/doc/${dec.ada}?inline=true" target="_blank" rel="noopener noreferrer" class="pdf-link">
-                        Προβολή PDF <i class="ph ph-arrow-square-out"></i>
+                    <a href="${dec.documentUrl || 'https://diavgeia.gov.gr/doc/' + dec.ada}?inline=true" target="_blank" rel="noopener noreferrer" class="pdf-link">
+                        Προβολή <i class="ph ph-file-pdf"></i>
                     </a>
                 </div>
             </article>

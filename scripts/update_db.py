@@ -18,6 +18,55 @@ count_lock = threading.Lock()
 processed_count = 0
 total_to_process = 0
 
+def generate_ai_summary(text):
+    """
+    Extractive summarization heuristic that ranks sentences by administrative keywords.
+    Provides a meaningful 1-2 sentence summary for our decision cards.
+    """
+    if not text or len(text.strip()) < 50:
+        return None
+        
+    # Clean some common PDF artifacts if any
+    clean_text = text.replace('\n', ' ').strip()
+    sentences = [s.strip() for s in clean_text.split('.') if len(s.strip()) > 15]
+    if not sentences: return None
+    
+    # Administrative keywords that usually indicate the core of a decision
+    keywords = [
+        "έγκριση", "απόφαση", "ανάθεση", "πρόσληψη", "πληρωμή", "κατακύρωση", 
+        "προμήθεια", "διαγωνισμός", "σύμβαση", "συγκρότηση", "ορισμός", "δαπάνη",
+        "έργο", "μελέτη", "υπηρεσία", "επιτροπή", "καθασμός", "εκλογή", "τεχνικό"
+    ]
+    
+    ranked = []
+    for i, s in enumerate(sentences[:15]): # Look at first 15 sentences
+        score = 0
+        s_lower = s.lower()
+        
+        # Priority 1: Keyword matches
+        for kw in keywords:
+            if kw in s_lower:
+                score += 5
+        
+        # Priority 2: Position (earlier is usually more descriptive)
+        score += (15 - i) * 0.5
+        
+        # Priority 3: Contains Greek numbers (like ADA or protocols)
+        if any(char.isdigit() for char in s):
+            score += 2
+            
+        ranked.append((score, s))
+    
+    # Sort and pick the best sentence
+    ranked.sort(reverse=True, key=lambda x: x[0])
+    summary = ranked[0][1]
+    
+    # Final cleanup
+    summary = summary.strip()
+    if len(summary) > 220:
+        summary = summary[:217] + "..."
+    return summary
+
 def fetch_pdf_text(dec):
     global processed_count, total_to_process
     ada = dec.get('ada')
@@ -39,6 +88,11 @@ def fetch_pdf_text(dec):
              
              full_text = " ".join(text)
              dec['documentText'] = full_text
+             
+             # Generate AI summary immediately
+             summary = generate_ai_summary(full_text)
+             if summary:
+                 dec['summary'] = summary
          else:
              dec['documentText'] = "" # Mark as empty to avoid retrying on 404s
     except Exception as e:
@@ -172,7 +226,19 @@ def main():
             to_fetch = missing_texts[:1000] # First 1000 PDFs in this pass
             executor.map(fetch_pdf_text, to_fetch)
             
-    # 3. Save
+    # 4. AI Summarization pass for existing texts that lack a summary
+    print("[*] Running AI Summarization pass on first 1000 items...")
+    summarized_count = 0
+    for dec in sorted_decisions:
+        if 'documentText' in dec and 'summary' not in dec:
+            summary = generate_ai_summary(dec['documentText'])
+            if summary:
+                dec['summary'] = summary
+                summarized_count += 1
+        if summarized_count >= 1000: break
+    print(f"[*] AI Summarization pass completed: {summarized_count} summaries generated.")
+
+    # 5. Save
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     with open(db_path, 'w', encoding='utf-8') as f:
         json.dump(sorted_decisions, f, ensure_ascii=False, indent=1)
