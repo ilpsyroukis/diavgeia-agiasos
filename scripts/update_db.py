@@ -18,53 +18,83 @@ count_lock = threading.Lock()
 processed_count = 0
 total_to_process = 0
 
+import re
+
 def generate_ai_summary(text):
     """
-    Extractive summarization heuristic that ranks sentences by administrative keywords.
-    Provides a meaningful 1-2 sentence summary for our decision cards.
+    Improved AI summary with noise reduction and redundant prefix removal.
+    Focuses on extracting meaningful action descriptions (e.g. 'Επισκευή πόρτας').
     """
     if not text or len(text.strip()) < 50:
         return None
         
-    # Clean some common PDF artifacts if any
-    clean_text = text.replace('\n', ' ').strip()
-    sentences = [s.strip() for s in clean_text.split('.') if len(s.strip()) > 15]
+    # 1. Aggressive cleaning of symbols and noise from PDF tables
+    clean_text = text.replace('|', ' ').replace('-', ' ').replace('_', ' ').replace('=', ' ')
+    clean_text = re.sub(r'\.{2,}', ' ', clean_text) # remove multi-dots
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip() # normalize whitespace
+    
+    # 2. Redundant administrative phrases to strip out
+    junk_prefixes = [
+        "ΔΕΣΜΕΥΣΗ ΠΟΣΟΥ ΓΙΑ ΤΗΝ", "ΔΕΣΜΕΥΣΗ ΠΟΣΟΥ ΓΙΑ ΤΙΣ", "ΔΕΣΜΕΥΣΗ ΠΟΣΟΥ ΓΙΑ", 
+        "ΑΠΟΦΑΣΗ", "ΕΓΚΡΙΣΗ", "ΠΡΟΜΗΘΕΙΑ", "ΠΑΡΟΧΗ ΥΠΗΡΕΣΙΩΝ", "ΠΛΗΡΩΜΗ ΓΙΑ"
+    ]
+    
+    # 3. Sentence splitting (improved logic)
+    sentences = [s.strip() for s in clean_text.split('.') if len(s.strip()) > 10]
     if not sentences: return None
     
-    # Administrative keywords that usually indicate the core of a decision
+    # 4. Keyword targeting
     keywords = [
-        "έγκριση", "απόφαση", "ανάθεση", "πρόσληψη", "πληρωμή", "κατακύρωση", 
-        "προμήθεια", "διαγωνισμός", "σύμβαση", "συγκρότηση", "ορισμός", "δαπάνη",
-        "έργο", "μελέτη", "υπηρεσία", "επιτροπή", "καθασμός", "εκλογή", "τεχνικό"
+        "επισκευή", "συντήρηση", "καθαρισμός", "αγορά", "ανάθεση", "μετάβαση",
+        "καύσιμα", "τροφεία", "υπηρεσίες", "δράση", "εκδήλωση", "έργο", "προσωπικό"
     ]
     
     ranked = []
-    for i, s in enumerate(sentences[:15]): # Look at first 15 sentences
+    for i, s in enumerate(sentences[:20]):
         score = 0
-        s_lower = s.lower()
-        
-        # Priority 1: Keyword matches
-        for kw in keywords:
-            if kw in s_lower:
-                score += 5
-        
-        # Priority 2: Position (earlier is usually more descriptive)
-        score += (15 - i) * 0.5
-        
-        # Priority 3: Contains Greek numbers (like ADA or protocols)
-        if any(char.isdigit() for char in s):
-            score += 2
+        s_upper = s.upper()
+
+        # Boost sentences following a specific marker (common in Diavgeia headers)
+        markers = ["ΑΙΤΙΑ ΠΛΗΡΩΜΗΣ", "ΘΕΜΑ:", "ΘΕΜΑ", "ΠΕΡΙΛΗΨΗ"]
+        for marker in markers:
+            if marker in s_upper:
+                score += 15
+                # Extract the text after the marker if possible
+                parts = re.split(f"{marker}", s, flags=re.IGNORECASE)
+                if len(parts) > 1: s = parts[1].strip()
+
+        # Penalty for mostly numeric sentences (budget codes)
+        num_count = sum(c.isdigit() for c in s)
+        if num_count > len(s) * 0.3:
+            score -= 10
             
-        ranked.append((score, s))
+        # Penalty for extremely short or noisy strings
+        if len(s) < 20: score -= 5
+        
+        # Boost for actual keywords
+        for kw in keywords:
+            if kw in s.lower():
+                score += 5
+                
+        # Strip junk prefixes from the candidate summary
+        for junk in junk_prefixes:
+            if s.upper().startswith(junk):
+                s = s[len(junk):].strip()
+        
+        if len(s) > 10:
+            ranked.append((score, s))
     
-    # Sort and pick the best sentence
+    if not ranked: return None
+    
+    # Sort and pick the best candidate
     ranked.sort(reverse=True, key=lambda x: x[0])
     summary = ranked[0][1]
     
-    # Final cleanup
-    summary = summary.strip()
-    if len(summary) > 220:
-        summary = summary[:217] + "..."
+    # Final cleanup (capitalization and length)
+    summary = summary.capitalize().strip()
+    if len(summary) > 150:
+        summary = summary[:147] + "..."
+        
     return summary
 
 def fetch_pdf_text(dec):
@@ -226,17 +256,17 @@ def main():
             to_fetch = missing_texts[:1000] # First 1000 PDFs in this pass
             executor.map(fetch_pdf_text, to_fetch)
             
-    # 4. AI Summarization pass for existing texts that lack a summary
-    print("[*] Running AI Summarization pass on first 1000 items...")
+    # 4. AI Summarization pass - Updating first 1000 items with new cleaner logic
+    print("[*] Updating first 1000 AI summaries with new cleaner logic...")
     summarized_count = 0
     for dec in sorted_decisions:
-        if 'documentText' in dec and 'summary' not in dec:
+        if 'documentText' in dec:
             summary = generate_ai_summary(dec['documentText'])
             if summary:
                 dec['summary'] = summary
                 summarized_count += 1
         if summarized_count >= 1000: break
-    print(f"[*] AI Summarization pass completed: {summarized_count} summaries generated.")
+    print(f"[*] AI Summarization pass completed: {summarized_count} summaries updated.")
 
     # 5. Save
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
