@@ -122,6 +122,8 @@ def main():
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'web', 'data.json')
     
     # 1. Load existing DB to keep cached texts
+    existing_texts = {}
+    existing_summaries = {}
     if os.path.exists(db_path):
         try:
             with open(db_path, 'r', encoding='utf-8') as f:
@@ -130,6 +132,10 @@ def main():
                     ada = dec.get('ada')
                     if ada:
                         unique_decisions[ada] = dec
+                        if 'documentText' in dec:
+                            existing_texts[ada] = dec['documentText']
+                        if 'summary' in dec:
+                            existing_summaries[ada] = dec['summary']
             print(f"[*] Loaded {len(unique_decisions)} existing decisions from data.json")
         except Exception as e:
             print(f"[!] Could not load existing DB: {e}")
@@ -205,12 +211,21 @@ def main():
         dec = {
             "ada": ada,
             "subject": d.get('subject', 'Χωρίς Θέμα'),
-            "issueDate": issue_date_ts,
+            "issueDate": issue_date_ts if issue_date_ts else d.get('issueDate', 0),
             "organizationId": d.get('organization', {}).get('uid', d.get('organizationId', '')),
+            "organizationLabel": d.get('organization', {}).get('label', d.get('organizationLabel', '')),
+            "decisionTypeLabel": d.get('decisionType', {}).get('label', d.get('decisionTypeLabel', '')),
             "documentUrl": d.get('documentUrl', f"https://diavgeia.gov.gr/doc/{ada}")
         }
-        if 'documentText' in d:
+        if ada in existing_texts:
+            dec['documentText'] = existing_texts[ada]
+        elif 'documentText' in d:
             dec['documentText'] = d['documentText']
+            
+        if ada in existing_summaries:
+            dec['summary'] = existing_summaries[ada]
+        elif 'summary' in d:
+            dec['summary'] = d['summary']
         
         final_list.append(dec)
 
@@ -230,6 +245,12 @@ def main():
     # Sort for final save
     sorted_decisions = sorted(unique_decisions_list, key=lambda x: x.get('issueDate', 0), reverse=True)
 
+    # Save initial metadata (with organization labels) immediately
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    with open(db_path, 'w', encoding='utf-8') as f:
+        json.dump(sorted_decisions, f, ensure_ascii=False, indent=1)
+    print(f"[*] Saved metadata for {len(sorted_decisions)} decisions to {db_path}")
+
     if total_to_process > 0:
         print("[*] Downloading and parsing PDFs in parallel (limit 1000 per run to prevent timeout)...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -240,7 +261,7 @@ def main():
     print("[*] Updating first 1000 AI summaries with new cleaner logic...")
     summarized_count = 0
     for dec in sorted_decisions:
-        if 'documentText' in dec or 'subject' in dec:
+        if ('documentText' in dec or 'subject' in dec) and 'summary' not in dec:
             summary = generate_ai_summary(dec.get('documentText', ''), dec.get('subject', ''))
             if summary:
                 dec['summary'] = summary
@@ -248,12 +269,11 @@ def main():
         if summarized_count >= 1000: break
     print(f"[*] AI Summarization pass completed: {summarized_count} summaries updated.")
 
-    # 5. Save
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    # Final Save after PDF and Summarization
     with open(db_path, 'w', encoding='utf-8') as f:
         json.dump(sorted_decisions, f, ensure_ascii=False, indent=1)
         
-    print(f"[*] Completed! Saved {len(sorted_decisions)} decisions to {db_path}")
+    print(f"[*] Completed! Final update saved to {db_path}")
 
 if __name__ == "__main__":
     main()

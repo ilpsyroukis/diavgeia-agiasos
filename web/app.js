@@ -229,6 +229,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h3 class="decision-subject" title="${originalSubject.replace(/"/g, '&quot;')}">
                         ${truncateText(displayTitle, 120)}
                     </h3>
+                    <div class="decision-org">
+                        <i class="ph ph-buildings"></i>
+                        <span>Φορέας: ${dec.organizationLabel || 'Άγνωστος Φορέας'}</span>
+                    </div>
+                    <div class="decision-type">
+                        <i class="ph ph-tag"></i>
+                        <span>Είδος: ${dec.decisionTypeLabel || 'Άγνωστο'}</span>
+                    </div>
                 </div>
                 <div class="decision-footer">
                     <span class="ada-badge">ΑΔΑ: ${dec.ada}</span>
