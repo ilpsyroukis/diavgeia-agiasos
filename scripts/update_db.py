@@ -19,7 +19,11 @@ processed_count = 0
 total_to_process = 0
 
 import re
+import unicodedata
 
+def strip_accents(text):
+    if not text: return ""
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 def generate_ai_summary(text, subject=""):
     """
     Cleans the official Diavgeia subject for a human-readable title.
@@ -76,6 +80,37 @@ def generate_ai_summary(text, subject=""):
         title = title[:117] + "..."
         
     return title
+
+def is_false_positive(dec):
+    """
+    Checks if a decision is a false positive based on common search noises.
+    Specifically targets the Vrilissia address "Odos Agiasou" which is not related to the village.
+    """
+    subject = strip_accents(dec.get('subject') or "").upper()
+    org = strip_accents(dec.get('organizationLabel') or "").upper()
+    text = strip_accents(dec.get('documentText') or "").upper()
+    
+    # Signatures of the common false positive (Vrilissia company/address)
+    # The zip code 15235 and the area VRILISSIA are key markers.
+    problematic_markers = ["15235", "ΒΡΙΛΗΣΣΙΑ", "99887093", "ΑΓΙΑΣΟΥ 45", "ΑΓΙΑΣΟΥ 47"]
+    
+    has_marker = any(marker in text or marker in subject or marker in org for marker in problematic_markers)
+    
+    if not has_marker:
+        return False
+        
+    # If it has the marker, we verify if it has a VALID local connection.
+    # If the organization is from Lesvos/Agiasos/Mytilene, it's NOT a false positive.
+    # We use partial stems for robustness (e.g., ΜΥΤΙΛΗΝ covers ΜΥΤΙΛΗΝΗΣ, ΜΥΤΙΛΗΝΗ).
+    local_keywords = ["ΜΥΤΙΛΗΝ", "ΛΕΣΒΟ", "ΒΟΡΕΙΟΥ ΑΙΓΑΙΟΥ", "ΠΑΝΕΠΙΣΤΗΜΙΟ ΑΙΓΑΙΟΥ"]
+    
+    is_local_org = any(word in org for word in local_keywords)
+    if is_local_org:
+        return False
+        
+    # If it's NOT a local org but has Vrilissia markers (ZIP, Area, or the specific address block), 
+    # it's a false positive regardless of whether "ΑΓΙΑΣΟ" is in the subject (as it's likely a street address).
+    return True
 
 def fetch_pdf_text(dec):
     global processed_count, total_to_process
@@ -229,9 +264,16 @@ def main():
         
         final_list.append(dec)
 
-    # Final cleanup: Ensure everything is since 2022
+    # Final cleanup: Ensure everything is since 2022 AND not a false positive
     start_ts = int(datetime(2022, 1, 1).timestamp() * 1000)
-    unique_decisions_list = [v for v in final_list if v.get('issueDate', 0) >= start_ts]
+    unique_decisions_list = [
+        v for v in final_list 
+        if v.get('issueDate', 0) >= start_ts and not is_false_positive(v)
+    ]
+    
+    removed_count = len(final_list) - len(unique_decisions_list)
+    if removed_count > 0:
+        print(f"[*] Filtered out {removed_count} false positive documents (e.g., Vrilissia).")
 
     # 2. Identify missing documentTexts
     missing_texts = [dec for dec in unique_decisions_list if 'documentText' not in dec]
@@ -268,6 +310,13 @@ def main():
                 summarized_count += 1
         if summarized_count >= 1000: break
     print(f"[*] AI Summarization pass completed: {summarized_count} summaries updated.")
+
+    # Final Sub-Filtering after PDF downloading is done
+    original_len = len(sorted_decisions)
+    sorted_decisions = [v for v in sorted_decisions if not is_false_positive(v)]
+    removed = original_len - len(sorted_decisions)
+    if removed > 0:
+        print(f"[*] Filtered out {removed} false positive documents after full-text extraction.")
 
     # Final Save after PDF and Summarization
     with open(db_path, 'w', encoding='utf-8') as f:
