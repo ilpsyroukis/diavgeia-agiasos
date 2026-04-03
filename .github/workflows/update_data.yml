@@ -42,7 +42,8 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update Diavgeia Data: $(date -u +'%Y-%m-%d')"
-            # Pull with rebase to handle small race conditions
-            git pull --rebase origin main
+            # Pull with rebase to handle small race conditions. 
+            # -X theirs prioritizes the action's local generated data.json over the remote in case of conflict.
+            git pull origin main --rebase --strategy-option=theirs
             git push
           fi

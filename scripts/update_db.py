@@ -271,7 +271,7 @@ def main():
     # Identify missing full-text (limit to 100 per run to ensure action stability)
     missing_texts = [dec for dec in final_list if 'documentText' not in dec]
     global total_to_process, processed_count
-    total_to_process = min(len(missing_texts), 300) # Reduced limit for better stability
+    total_to_process = min(len(missing_texts), 100) # Reduced limit to 100 to avoid GitHub Action timeouts
     processed_count = 0
     
     if total_to_process > 0:
